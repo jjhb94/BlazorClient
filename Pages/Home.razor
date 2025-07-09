@@ -1,0 +1,188 @@
+﻿@page "/"
+@using BlazorClient.Models
+@using BlazorClient.Services
+@inject IChatService ChatService
+@inject ISettingsService SettingsService
+@inject ILogger<Home> Logger
+
+<PageTitle>Chat - MCP</PageTitle>
+
+<link href="css/Home.css" rel="stylesheet" />
+
+<div class="chat-container">
+    <div class="chat-bubble assistant">
+        <div class="chat-title">Chat with an MCP Server</div>
+        <div class="chat-content">
+            <p>Hi, I'm a client to test MCP using a model <b>[@deploymentName]</b> with <b>[@clientMode]</b></p>
+            <p>Check the Settings page to test the model using GitHub Models, Ollama or Azure AI Foundry or to use custom settings.</p>
+        </div>
+        <div class="chat-title">Current MCP Tools in the Server:</div>
+        <div class="chat-content">
+            @if (tools is not null)
+                foreach (var tool in tools)
+                {
+                    <p>- <b>@tool.Name</b>: @tool.Description</p>
+                }
+        </div>
+    </div>
+
+    @foreach (var message in ChatMessages)
+    {
+        string chatBubbleClass = string.Empty;
+        string messageContent = string.Empty;
+        string messageTitle = string.Empty;
+        string functionResponse = string.Empty;
+        var functionCallId = string.Empty;
+
+        messageContent = message.Content ?? string.Empty;
+
+        if (message.Role == "User")
+        {
+            messageTitle = "User";
+            chatBubbleClass = "chat-bubble user";
+        }
+        else if (message.Role == "Assistant")
+        {
+            messageTitle = "Assistant";
+            chatBubbleClass = "chat-bubble assistant";
+            functionResponse = message.ToolResponse ?? string.Empty;
+            functionCallId = message.ToolCallId ?? string.Empty;
+        }
+        else
+        {
+            messageTitle = "Tool";
+            chatBubbleClass = "chat-bubble tool";
+        }
+
+        <div class="@chatBubbleClass">
+            <div class="chat-title">@messageTitle</div>
+            <div class="chat-content">@messageContent</div>
+            @if (!string.IsNullOrEmpty(functionResponse))
+            {
+                <details>
+                    <summary class="think-summary">Tool Result</summary>
+                    <div class="think-content">@functionResponse</div>
+                    <div class="think-content">@functionCallId</div>
+                </details>
+            }
+        </div>
+    }
+</div>
+
+@if (isLoading)
+{
+    <div class="loading-container">
+        <div class="loading-ring"></div>
+    </div>
+}
+
+<div class="chat-input-container">
+    <input type="text" @bind="userQuestion" placeholder="Ask a question..." class="chat-input" @onkeypress="HandleKeyPress" />
+    <button @onclick="AskQuestion" type="submit" class="chat-button">Chat</button>
+</div>
+
+@if (!string.IsNullOrEmpty(errorDetails))
+{
+    <div class="error-container">
+        <div class="error-title">Error:</div>
+        <div class="error-content">@errorDetails</div>
+    </div>
+}
+
+@code {
+    private bool isLoading = false;
+    private string userQuestion = string.Empty;
+    private string errorDetails = string.Empty;
+    private string deploymentName = "llama3.2";
+    private string clientMode = "Simulated";
+    private List<McpTool> tools = new();
+    private List<ChatMessage> ChatMessages = new();
+    private ChatSettings currentSettings = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Get settings
+            currentSettings = await SettingsService.GetSettingsAsync();
+            deploymentName = currentSettings.DeploymentName;
+            clientMode = currentSettings.ClientMode;
+
+            // Get MCP server tools
+            tools = await ChatService.GetToolsAsync();
+
+            // Add system message
+            ChatMessages.Add(new ChatMessage 
+            { 
+                Role = "System", 
+                Content = "You are a helpful assistant. You always reply using text and emojis. You never generate HTML or Markdown. You only do what the user asks you to do. If you don't have a function to answer a question, you just answer the question." 
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error initializing chat");
+            errorDetails = ex.Message;
+        }
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !isLoading)
+        {
+            await AskQuestion();
+        }
+    }
+
+    private async Task AskQuestion()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(userQuestion) || isLoading)
+                return;
+
+            isLoading = true;
+            StateHasChanged();
+
+            Logger.LogInformation($"Add user question: {userQuestion}");
+            ChatMessages.Add(new ChatMessage { Role = "User", Content = userQuestion });
+
+            var question = userQuestion;
+            userQuestion = string.Empty; // Clear the input
+            StateHasChanged();
+
+            var request = new ChatRequest
+            {
+                Messages = ChatMessages,
+                Settings = currentSettings
+            };
+
+            var response = await ChatService.SendMessageAsync(request);
+            
+            if (response.IsError)
+            {
+                errorDetails = response.ErrorMessage ?? "Unknown error occurred";
+            }
+            else
+            {
+                Logger.LogInformation($"Model Response: {response.Content}");
+                ChatMessages.Add(new ChatMessage 
+                { 
+                    Role = "Assistant", 
+                    Content = response.Content,
+                    ToolCallId = response.ToolCallId,
+                    ToolResponse = response.ToolResponse
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "An error occurred while processing the chat request.");
+            errorDetails = ex.ToString();
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+}
