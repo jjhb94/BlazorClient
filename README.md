@@ -1,10 +1,10 @@
 # BlazorClient - Blazor WebAssembly Chat Application
 
-This is a Blazor WebAssembly application that replicates the chat UI and functionality from the original Aspire MCP Sample application, but as a client-side application that calls APIs instead of using server-side Blazor.
+This is a Blazor WebAssembly application that implements a chat UI and functionality as a client-side application that calls APIs instead of using server-side Blazor in the same application. This serves as a template for anyone to use and test / connect LMM's, LLM's, or MCP servers.
 
 ## Features
 
-- **Modern Chat Interface**: Clean, responsive chat UI with purple/violet theming matching the original application
+- **Modern Chat Interface**: Clean, responsive chat UI with purple/violet theming
 - **Real-time Messaging**: Interactive chat interface with loading indicators
 - **Settings Management**: Configuration page for API endpoints, deployment names, and API keys
 - **Tool Integration**: Displays available MCP tools and their descriptions
@@ -15,18 +15,18 @@ This is a Blazor WebAssembly application that replicates the chat UI and functio
 
 ### Prerequisites
 
-- .NET 9.0 SDK
+- .NET 9.0 SDK (could work with dotnet 8 too)
 - Modern web browser
 
 ### Running the Application
 
 1. Navigate to the BlazorClient directory:
-   ```bash
+   ```
    cd src/BlazorClient
    ```
 
 2. Run the application:
-   ```bash
+   ```
    dotnet run
    ```
 
